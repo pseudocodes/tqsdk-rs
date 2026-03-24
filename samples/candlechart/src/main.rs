@@ -18,8 +18,8 @@ async fn main() {
 
     let (tx, mut rx) = mpsc::channel(100);
 
-    let symbol = "SHFE.au2602";
-    
+    let symbol = "SHFE.au2606";
+
     let mut client = Client::new(&username, &password, config)
         .await
         .expect("创建客户端失败");
@@ -37,31 +37,36 @@ async fn main() {
     let tx_clone = tx.clone();
     sub.on_update(move |data, _info| {
         if let Some(sym_data) = data.get_symbol_klines(symbol) {
-            let candles: Vec<Candle> = sym_data.data.iter().map(|kline| {
-                Candle::new(
-                    kline.open,
-                    kline.high,
-                    kline.low,
-                    kline.close,
-                    Some(kline.volume as f64),
-                    Some(kline.datetime / 1_000_000_000),
-                )
-            }).collect();
-            
+            let candles: Vec<Candle> = sym_data
+                .data
+                .iter()
+                .map(|kline| {
+                    Candle::new(
+                        kline.open,
+                        kline.high,
+                        kline.low,
+                        kline.close,
+                        Some(kline.volume as f64),
+                        Some(kline.datetime / 1_000_000_000),
+                    )
+                })
+                .collect();
+
             let tx = tx_clone.clone();
             tokio::spawn(async move {
                 let _ = tx.send(candles).await;
             });
         }
-    }).await;
-    
+    })
+    .await;
+
     sub.start().await.expect("启动监听失败");
     info!("✅ 订阅已启动");
 
     let candles: Vec<Candle> = Vec::new();
     let mut chart = cli_candlestick_chart::Chart::new(&candles);
     chart.set_name(symbol.to_string());
-    
+
     while let Some(candles) = rx.recv().await {
         chart = cli_candlestick_chart::Chart::new(&candles);
         chart.set_name(symbol.to_string());
@@ -72,6 +77,4 @@ async fn main() {
         chart.set_volume_pane_enabled(true);
         chart.draw();
     }
-
-    
 }

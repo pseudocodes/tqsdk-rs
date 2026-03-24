@@ -5,7 +5,7 @@
 //! - 时间转换
 //! - 字符串处理
 
-use crate::errors::{Result, TqError};
+use super::errors::{Result, TqError};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use serde_json::Value;

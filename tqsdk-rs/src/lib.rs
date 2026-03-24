@@ -28,55 +28,21 @@
 //! }
 //! ```
 
-// 错误类型
-pub mod errors;
+// v1alpha1 实现
+pub mod v1alpha1;
 
-// 日志系统
-pub mod logger;
-
-// 工具函数
-pub mod utils;
-
-// 数据结构
-pub mod types;
-
-// 数据管理器
-pub mod datamanager;
-
-// 认证模块
-pub mod auth;
-
-// WebSocket 连接
-pub mod websocket;
-
-// Quote 订阅
-pub mod quote;
-
-// Series API
-pub mod series;
-
-// 交易会话
-pub mod trade_session;
-
-// 客户端
-pub mod client;
-
-// Polars 扩展（可选功能）
-#[cfg(feature = "polars")]
-pub mod polars_ext;
-
-// 重新导出常用类型
-pub use auth::Authenticator;
-pub use client::{Client, ClientConfig, ClientOption};
-pub use datamanager::{DataManager, DataManagerConfig};
-pub use errors::{Result, TqError};
-pub use logger::{init_logger, create_logger_layer};
-pub use quote::QuoteSubscription;
-pub use series::{SeriesAPI, SeriesSubscription};
-pub use trade_session::TradeSession;
-pub use types::*; // SeriesData 和 UpdateInfo 已在此导出
-pub use websocket::TqWebsocket;
+// 重新导出常用类型（保持向后兼容）
+pub use v1alpha1::auth::Authenticator;
+pub use v1alpha1::client::{Client, ClientConfig, ClientOption};
+pub use v1alpha1::datamanager::{DataManager, DataManagerConfig};
+pub use v1alpha1::errors::{Result, TqError};
+pub use v1alpha1::logger::{create_logger_layer, init_logger};
+pub use v1alpha1::quote::QuoteSubscription;
+pub use v1alpha1::series::{SeriesAPI, SeriesSubscription};
+pub use v1alpha1::trade_session::TradeSession;
+pub use v1alpha1::types::*;
+pub use v1alpha1::websocket::TqWebsocket;
 
 // Polars 扩展
 #[cfg(feature = "polars")]
-pub use polars_ext::{KlineBuffer, TickBuffer};
+pub use v1alpha1::polars_ext::{KlineBuffer, TickBuffer};

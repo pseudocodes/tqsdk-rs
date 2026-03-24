@@ -5,8 +5,8 @@
 #[cfg(feature = "polars")]
 use polars::prelude::*;
 
-use crate::errors::{Result, TqError};
-use crate::types::{Kline, Tick, SeriesData, KlineSeriesData, TickSeriesData, MultiKlineSeriesData};
+use super::errors::{Result, TqError};
+use super::types::{Kline, Tick, SeriesData, KlineSeriesData, TickSeriesData, MultiKlineSeriesData};
 
 // ==================== K线缓冲区 ====================
 

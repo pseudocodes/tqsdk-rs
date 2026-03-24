@@ -6,8 +6,8 @@
 //! - 消息队列
 //! - Debug 日志
 
-use crate::datamanager::DataManager;
-use crate::errors::{Result, TqError};
+use super::datamanager::DataManager;
+use super::errors::{Result, TqError};
 use futures::{SinkExt, StreamExt};
 use reqwest::header::HeaderMap;
 use serde::Serialize;
@@ -17,7 +17,7 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 use tracing::{debug, error, info, trace, warn};
-use yawc::frame::{FrameView, OpCode};
+use yawc::frame::{Frame, OpCode};
 
 /// WebSocket 状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,7 +65,7 @@ pub struct TqWebsocket {
     should_reconnect: Arc<RwLock<bool>>,
 
     // WebSocket 连接实例
-    ws: Arc<Mutex<Option<yawc::WebSocket>>>,
+    ws: Arc<Mutex<Option<yawc::TcpWebSocket>>>,
 
     // 回调函数
     on_message: Arc<RwLock<Option<Box<dyn Fn(Value) + Send + Sync>>>>,
@@ -176,12 +176,10 @@ impl TqWebsocket {
 
             let mut ws_guard = self.ws.lock().await;
             if let Some(ws) = ws_guard.as_mut() {
-                // yawc 使用 Sink trait，发送 FrameView
-                let frame = FrameView::text(json_str.into_bytes());
+                // yawc 使用 Sink trait，发送 Frame
+                let frame = Frame::text(json_str);
                 match ws.send(frame).await {
-                    Ok(_) => {
-                        Ok(())
-                    }
+                    Ok(_) => Ok(()),
                     Err(e) => {
                         error!("消息发送失败: {}", e);
                         Err(TqError::WebSocketError(format!("Send failed: {}", e)))
@@ -248,7 +246,7 @@ impl TqWebsocket {
         if let Some(ws) = ws_guard.as_mut() {
             for msg in queue.drain(..) {
                 debug!("发送队列消息: {}", msg);
-                let frame = FrameView::text(msg.into_bytes());
+                let frame = Frame::text(msg);
                 match ws.send(frame).await {
                     Ok(_) => {
                         debug!("队列消息发送成功");
@@ -296,11 +294,17 @@ impl TqWebsocket {
     /// 启动消息接收循环
     async fn start_receive_loop(&self) {
         let status = Arc::clone(&self.status);
-        let ws = Arc::clone(&self.ws);
+        let ws: Arc<Mutex<Option<yawc::TcpWebSocket>>> = Arc::clone(&self.ws);
         let _on_message = Arc::clone(&self.on_message);
+        let _on_open = Arc::clone(&self.on_open);
         let _on_error = Arc::clone(&self.on_error);
         let _on_close = Arc::clone(&self.on_close);
         let _should_reconnect = Arc::clone(&self.should_reconnect);
+        let _reconnect_times = Arc::clone(&self.reconnect_times);
+        let _reconnect_interval = self.config.reconnect_interval;
+        let _reconnect_max_times = self.config.reconnect_max_times;
+        let _headers = self.config.headers.clone();
+        let _queue = Arc::clone(&self.queue);
         let _url = self.url.clone();
 
         tokio::spawn(async move {
@@ -326,10 +330,10 @@ impl TqWebsocket {
                     match next_result {
                         Ok(Some(frame)) => {
                             // 处理不同类型的帧
-                            match frame.opcode {
+                            match frame.opcode() {
                                 OpCode::Text | OpCode::Binary => {
                                     // 将 payload 转换为字符串
-                                    match String::from_utf8(frame.payload.to_vec()) {
+                                    match String::from_utf8(frame.payload().to_vec()) {
                                         Ok(text) => {
                                             debug!("WebSocket Recv Text: {}", text);
 
@@ -353,8 +357,7 @@ impl TqWebsocket {
                                         }
                                     }
 
-                                    let frame =
-                                        FrameView::text(r#"{"aid": "peek_message"}"#.as_bytes());
+                                    let frame = Frame::text(r#"{"aid": "peek_message"}"#);
                                     match ws_instance.send(frame).await {
                                         Ok(_) => {
                                             debug!("Websocket Send -> peek_message");
@@ -367,15 +370,26 @@ impl TqWebsocket {
                                 }
                                 OpCode::Close => {
                                     info!("WebSocket 收到关闭帧");
-                                    *status.write().unwrap() = WebSocketStatus::Closed;
-
-                                    // 触发关闭回调
-                                    if let Some(callback) = _on_close.read().unwrap().as_ref() {
-                                        callback();
-                                    }
-
                                     drop(ws_guard);
-                                    break;
+
+                                    if !reconnect_on_server_close(
+                                        &_should_reconnect,
+                                        &_reconnect_times,
+                                        _reconnect_max_times,
+                                        _reconnect_interval,
+                                        &_url,
+                                        &_headers,
+                                        &ws,
+                                        &status,
+                                        &_on_open,
+                                        &_on_close,
+                                        &_queue,
+                                    )
+                                    .await
+                                    {
+                                        break;
+                                    }
+                                    continue;
                                 }
                                 OpCode::Ping => {
                                     debug!("WebSocket 收到 Ping（自动处理）");
@@ -389,16 +403,31 @@ impl TqWebsocket {
                             }
                         }
                         Ok(None) => {
-                            // Stream 结束，连接关闭
-                            info!("WebSocket Stream 结束，连接已关闭");
-                            *status.write().unwrap() = WebSocketStatus::Closed;
-
-                            if let Some(callback) = _on_close.read().unwrap().as_ref() {
-                                callback();
-                            }
-
+                            // Stream 结束，连接关闭 — 可能是服务端 FIN/RST，也可能是 yawc 内部状态异常
+                            warn!("WebSocket Stream 返回 None（连接关闭），should_reconnect={}, status={:?}",
+                                *_should_reconnect.read().unwrap(),
+                                *status.read().unwrap()
+                            );
                             drop(ws_guard);
-                            break;
+
+                            if !reconnect_on_server_close(
+                                &_should_reconnect,
+                                &_reconnect_times,
+                                _reconnect_max_times,
+                                _reconnect_interval,
+                                &_url,
+                                &_headers,
+                                &ws,
+                                &status,
+                                &_on_open,
+                                &_on_close,
+                                &_queue,
+                            )
+                            .await
+                            {
+                                break;
+                            }
+                            continue;
                         }
                         Err(_) => {
                             // Timeout，继续下一次循环（这样可以检查状态是否变化）
@@ -447,6 +476,112 @@ impl TqWebsocket {
             // 重新连接（这里只是标记，实际重连需要外部调用 init）
             // 外部应该监听 on_error 回调并调用 init(true)
             info!("重连等待完成，请外部调用 init(true) 进行重连");
+        }
+    }
+}
+
+/// 服务端主动关闭连接时的重连逻辑
+///
+/// 返回 true 表示重连成功（调用方应 continue 循环），返回 false 表示不再重连（调用方应 break）
+async fn reconnect_on_server_close(
+    should_reconnect: &Arc<RwLock<bool>>,
+    reconnect_times: &Arc<RwLock<usize>>,
+    reconnect_max_times: usize,
+    reconnect_interval: Duration,
+    url: &str,
+    headers: &reqwest::header::HeaderMap,
+    ws: &Arc<Mutex<Option<yawc::TcpWebSocket>>>,
+    status: &Arc<RwLock<WebSocketStatus>>,
+    on_open: &Arc<RwLock<Option<Box<dyn Fn() + Send + Sync>>>>,
+    on_close: &Arc<RwLock<Option<Box<dyn Fn() + Send + Sync>>>>,
+    queue: &Arc<Mutex<Vec<String>>>,
+) -> bool {
+    if !*should_reconnect.read().unwrap() {
+        // 主动关闭（调用了 close()），不重连
+        *status.write().unwrap() = WebSocketStatus::Closed;
+        if let Some(cb) = on_close.read().unwrap().as_ref() {
+            cb();
+        }
+        return false;
+    }
+
+    let proceed = {
+        let mut t = reconnect_times.write().unwrap();
+        if *t >= reconnect_max_times {
+            error!("已达到最大重连次数 {}，停止重连", reconnect_max_times);
+            false
+        } else {
+            *t += 1;
+            info!("服务端关闭连接，第 {} 次尝试重连...", *t);
+            true
+        }
+    };
+
+    if !proceed {
+        *status.write().unwrap() = WebSocketStatus::Closed;
+        if let Some(cb) = on_close.read().unwrap().as_ref() {
+            cb();
+        }
+        return false;
+    }
+
+    sleep(reconnect_interval).await;
+
+    let parsed_url = match url::Url::parse(url) {
+        Ok(u) => u,
+        Err(e) => {
+            error!("重连 URL 解析失败: {}", e);
+            *status.write().unwrap() = WebSocketStatus::Closed;
+            return false;
+        }
+    };
+
+    let options = yawc::Options::default()
+        .client_no_context_takeover()
+        .server_no_context_takeover();
+
+    let mut http_builder = yawc::HttpRequestBuilder::new();
+    for (key, value) in headers.iter() {
+        if let Ok(vs) = value.to_str() {
+            http_builder = http_builder.header(key.as_str(), vs);
+        }
+    }
+
+    match yawc::WebSocket::connect(parsed_url)
+        .with_options(options)
+        .with_request(http_builder)
+        .await
+    {
+        Ok(new_ws) => {
+            info!("重连成功");
+            *ws.lock().await = Some(new_ws);
+            *status.write().unwrap() = WebSocketStatus::Open;
+
+            // 触发 on_open（会重放 subscribe_quote 和所有活跃 chart 请求）
+            if let Some(cb) = on_open.read().unwrap().as_ref() {
+                cb();
+            }
+
+            // 刷新发送队列
+            let msgs: Vec<String> = queue.lock().await.drain(..).collect();
+            if !msgs.is_empty() {
+                let mut wg = ws.lock().await;
+                if let Some(w) = wg.as_mut() {
+                    for msg in msgs {
+                        let _ = w.send(Frame::text(msg)).await;
+                    }
+                }
+            }
+
+            true
+        }
+        Err(e) => {
+            error!("重连失败: {}", e);
+            *status.write().unwrap() = WebSocketStatus::Closed;
+            if let Some(cb) = on_close.read().unwrap().as_ref() {
+                cb();
+            }
+            false
         }
     }
 }
@@ -611,7 +746,7 @@ pub struct TqTradeWebsocket {
     base: Arc<TqWebsocket>,
     _dm: Arc<DataManager>,
     req_login: Arc<RwLock<Option<Value>>>,
-    on_notify: Arc<RwLock<Option<Box<dyn Fn(crate::types::Notification) + Send + Sync>>>>,
+    on_notify: Arc<RwLock<Option<Box<dyn Fn(super::types::Notification) + Send + Sync>>>>,
 }
 
 impl TqTradeWebsocket {
@@ -620,7 +755,7 @@ impl TqTradeWebsocket {
         let base = Arc::new(TqWebsocket::new(url, config));
         let dm_clone = Arc::clone(&dm);
         let req_login: Arc<RwLock<Option<Value>>> = Arc::new(RwLock::new(None));
-        let on_notify: Arc<RwLock<Option<Box<dyn Fn(crate::types::Notification) + Send + Sync>>>> =
+        let on_notify: Arc<RwLock<Option<Box<dyn Fn(super::types::Notification) + Send + Sync>>>> =
             Arc::new(RwLock::new(None));
 
         // 注册消息处理
@@ -721,7 +856,7 @@ impl TqTradeWebsocket {
     /// 分离通知
     ///
     /// 从 rtn_data 的 data 数组中提取通知，并返回清理后的数据
-    fn separate_notifies(data: Vec<Value>) -> (Vec<crate::types::Notification>, Vec<Value>) {
+    fn separate_notifies(data: Vec<Value>) -> (Vec<super::types::Notification>, Vec<Value>) {
         let mut notifies = Vec::new();
         let mut cleaned_data = Vec::new();
 
@@ -732,7 +867,7 @@ impl TqTradeWebsocket {
                     if let Some(notify_map) = notify_data.as_object() {
                         for (_key, notify_value) in notify_map {
                             if let Some(n) = notify_value.as_object() {
-                                let notification = crate::types::Notification {
+                                let notification = super::types::Notification {
                                     code: n
                                         .get("code")
                                         .and_then(|v| v.as_str())
@@ -791,7 +926,7 @@ impl TqTradeWebsocket {
     /// 注册通知回调
     pub fn on_notify<F>(&self, callback: F)
     where
-        F: Fn(crate::types::Notification) + Send + Sync + 'static,
+        F: Fn(super::types::Notification) + Send + Sync + 'static,
     {
         *self.on_notify.write().unwrap() = Some(Box::new(callback));
     }

@@ -105,8 +105,7 @@ async fn single_kline_subscription_example() {
     config.view_width = 20000;
 
     // let symbol = "SHFE.au2602";
-    let symbol = "CFFEX.IF2512";
-
+    let symbol = "CFFEX.IF2604";
 
     let mut client = Client::new(&username, &password, config)
         .await
@@ -384,8 +383,8 @@ async fn main() {
 
 /// 初始化日志系统：同时输出到终端和文件
 fn init_logger_with_file(level: &str, filter_crate_only: bool) {
-    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
     use std::fs;
+    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
     // 创建日志目录
     fs::create_dir_all("logs").expect("无法创建日志目录");
@@ -414,7 +413,7 @@ fn init_logger_with_file(level: &str, filter_crate_only: bool) {
         .with_ansi(true) // 启用颜色
         .with_timer(fmt::time::OffsetTime::local_rfc_3339().expect("无法获取本地时区"))
         .compact();
-        
+
     // Layer 2: 文件输出（无颜色）
     let file_layer = fmt::layer()
         .with_target(true)
@@ -426,10 +425,10 @@ fn init_logger_with_file(level: &str, filter_crate_only: bool) {
         .with_timer(fmt::time::OffsetTime::local_rfc_3339().expect("无法获取本地时区"))
         .with_writer(file)
         .compact();
-        
 
     // 组合两个 Layer
-    tracing_subscriber::registry().with(filter)
+    tracing_subscriber::registry()
+        .with(filter)
         .with(console_layer)
         .with(file_layer)
         .init();

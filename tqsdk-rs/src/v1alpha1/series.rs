@@ -2,10 +2,10 @@
 //!
 //! 实现 K线和 Tick 订阅功能
 
-use crate::datamanager::DataManager;
-use crate::errors::{Result, TqError};
-use crate::types::{ChartInfo, SeriesData, UpdateInfo};
-use crate::websocket::TqQuoteWebsocket;
+use super::datamanager::DataManager;
+use super::errors::{Result, TqError};
+use super::types::{ChartInfo, SeriesData, UpdateInfo};
+use super::websocket::TqQuoteWebsocket;
 use async_stream::stream;
 use chrono::{DateTime, Utc};
 use futures::Stream;
@@ -16,7 +16,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, trace, warn};
 use uuid::Uuid;
 
-use crate::auth::Authenticator;
+use super::auth::Authenticator;
 
 /// Series API
 pub struct SeriesAPI {
@@ -481,17 +481,6 @@ impl SeriesSubscription {
         *running = false;
 
         info!("关闭 Series 订阅: {}", self.options.chart_id);
-
-        // 发送取消请求
-        let cancel_req = serde_json::json!({
-            "aid": "set_chart",
-            "chart_id": self.options.chart_id,
-            "ins_list": "",
-            "duration": self.options.duration,
-            "view_width": 0
-        });
-
-        self.ws.send(&cancel_req).await?;
         Ok(())
     }
 }

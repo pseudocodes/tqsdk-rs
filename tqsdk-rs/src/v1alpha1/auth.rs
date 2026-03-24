@@ -2,7 +2,7 @@
 //!
 //! 实现天勤账号认证和权限检查
 
-use crate::errors::{Result, TqError};
+use super::errors::{Result, TqError};
 use async_trait::async_trait;
 // JWT 相关导入（暂时不用）
 // use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};

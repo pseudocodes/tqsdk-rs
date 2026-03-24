@@ -6,15 +6,15 @@
 //! - Watch/UnWatch 路径监听
 //! - 数据类型转换
 
-use crate::errors::{Result, TqError};
-use crate::types::*;
-use crate::utils::{nanos_to_datetime, value_to_i64};
+use super::errors::{Result, TqError};
+use super::types::*;
+use super::utils::{nanos_to_datetime, value_to_i64};
+use async_channel::{unbounded, Receiver, Sender};
 use chrono::Utc;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, RwLock};
-use async_channel::{Sender, Receiver, unbounded};
 use tracing::{debug, error};
 
 /// 数据管理器配置
@@ -456,7 +456,7 @@ impl DataManager {
             // 转换 data map 为数组
             if let Some(Value::Object(kline_map)) = data_map.get("data") {
                 let mut all_klines: Vec<(i64, Kline)> = Vec::new();
-                
+
                 for (id_str, kline_data) in kline_map.iter() {
                     if let Ok(id) = id_str.parse::<i64>() {
                         match self.convert_to_struct::<Kline>(kline_data) {
@@ -465,7 +465,10 @@ impl DataManager {
                                 all_klines.push((id, kline));
                             }
                             Err(e) => {
-                                error!("{}", TqError::ParseError(format!("K线数据格式错误: {}", e)));
+                                error!(
+                                    "{}",
+                                    TqError::ParseError(format!("K线数据格式错误: {}", e))
+                                );
                             }
                         }
                     }
@@ -688,9 +691,20 @@ impl DataManager {
 
                 for (id_str, tick_data) in tick_map.iter() {
                     if let Ok(id) = id_str.parse::<i64>() {
-                        if let Ok(mut tick) = self.convert_to_struct::<Tick>(tick_data) {
-                            tick.id = id;
-                            all_ticks.push((id, tick));
+                        match self.convert_to_struct::<Tick>(tick_data) {
+                            Ok(mut tick) => {
+                                tick.id = id;
+                                all_ticks.push((id, tick));
+                            }
+                            Err(e) => {
+                                error!(
+                                    "{}",
+                                    TqError::ParseError(format!(
+                                        "Tick数据格式错误: id={}, {}",
+                                        id, e
+                                    ))
+                                );
+                            }
                         }
                     }
                 }

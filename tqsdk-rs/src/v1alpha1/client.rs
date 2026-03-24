@@ -2,13 +2,13 @@
 //!
 //! 统一的客户端入口
 
-use crate::auth::{Authenticator, TqAuth};
-use crate::datamanager::{DataManager, DataManagerConfig};
-use crate::errors::{Result, TqError};
-use crate::quote::QuoteSubscription;
-use crate::series::SeriesAPI;
-use crate::trade_session::TradeSession;
-use crate::websocket::{TqQuoteWebsocket, WebSocketConfig};
+use super::auth::{Authenticator, TqAuth};
+use super::datamanager::{DataManager, DataManagerConfig};
+use super::errors::{Result, TqError};
+use super::quote::QuoteSubscription;
+use super::series::SeriesAPI;
+use super::trade_session::TradeSession;
+use super::websocket::{TqQuoteWebsocket, WebSocketConfig};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -131,7 +131,7 @@ impl ClientBuilder {
     /// 如果认证失败，返回错误
     pub async fn build(self) -> Result<Client> {
         // 初始化日志
-        crate::logger::init_logger(&self.config.log_level, true);
+        super::logger::init_logger(&self.config.log_level, true);
 
         // 创建或使用提供的认证器
         let auth: Arc<RwLock<dyn Authenticator>> = if let Some(custom_auth) = self.auth {

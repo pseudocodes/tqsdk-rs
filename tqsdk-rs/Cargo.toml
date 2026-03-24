@@ -1,6 +1,6 @@
 [package]
 name = "tqsdk-rs"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["pseudocodes@gmail.com"]
 description = "天勤 TQSDK Rust 封装提供获取 TQSDK 行情, K 线数据以及实盘交易接口"
@@ -11,9 +11,9 @@ categories = ["api-bindings", "finance"]
 
 [dependencies]
 # WebSocket - yawc 必须使用
-yawc = { version = "0.2.7", features = ["zlib"] }
+yawc = { version = "0.3.3", features = ["zlib"] }
 
-reqwest = { version = "0.12.24", features = [
+reqwest = { version = "0.12.28", features = [
     "json",
     "gzip",
     "brotli",
@@ -57,7 +57,10 @@ uuid = { version = "1.18.1", features = ["v4", "serde"] }
 url = "2.5.7"
 
 # Polars - 数据分析
-polars = { version = "0.44.2", features = ["lazy", "dtype-datetime"], optional = true }
+polars = { version = "0.44.2", features = [
+    "lazy",
+    "dtype-datetime",
+], optional = true }
 
 [features]
 default = []
@@ -68,25 +71,21 @@ tokio-test = "0.4.4"
 tracing-appender = "0.2"
 
 [[example]]
-name = "quote"
-path = "examples/quote.rs"
+name = "v1alpha1_quote"
+path = "examples/v1alpha1/quote.rs"
 
 [[example]]
-name = "history"
-path = "examples/history.rs"
+name = "v1alpha1_history"
+path = "examples/v1alpha1/history.rs"
 
 [[example]]
-name = "trade"
-path = "examples/trade.rs"
+name = "v1alpha1_trade"
+path = "examples/v1alpha1/trade.rs"
 
 [[example]]
-name = "auth_demo"
-path = "examples/auth_demo.rs"
+name = "v1alpha1_datamanager"
+path = "examples/v1alpha1/datamanager.rs"
 
 [[example]]
-name = "auth_switch"
-path = "examples/auth_switch.rs"
-
-[[example]]
-name = "client_builder"
-path = "examples/client_builder.rs"
+name = "v1alpha1_custom_logger"
+path = "examples/v1alpha1/custom_logger.rs"
