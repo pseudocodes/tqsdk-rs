@@ -62,51 +62,42 @@ pub struct Grants {
 }
 
 /// 认证响应
-#[allow(dead_code)]
+///
+/// 只声明实际使用到的字段，对齐 tqsdk-python `auth.py::_request_token`
+/// （该实现仅取 access_token 与 refresh_token）。
+/// Keycloak 返回的 expires_in / token_type / scope / session_state /
+/// not-before-policy 等字段一律忽略，避免服务端调整响应结构时解析失败。
 #[derive(Debug, Deserialize)]
 struct AuthResponse {
     access_token: String,
-    expires_in: i64,
-    refresh_expires_in: i64,
+    /// 目前尚未实现 refresh_token 换取流程，缺失时按空串处理
+    #[serde(default)]
     refresh_token: String,
-    token_type: String,
-    #[serde(rename = "not-before-policy")]
-    not_before_policy: i32,
-    session_state: String,
-    scope: String,
 }
 
 /// Access Token Claims
-#[derive(Debug, Serialize, Deserialize)]
+///
+/// 只声明实际使用到的字段，对齐 tqsdk-python `auth.py::login`
+/// （该实现仅取 content["sub"] 与 content["grants"]）。
+/// JWT 中其余标准声明（jti/exp/iat/iss/azp/...）与用户信息
+/// （mobile/username/preferred_username/...）均不参与解析。
+#[derive(Debug, Deserialize)]
 struct AccessTokenClaims {
-    jti: String,
-    exp: i64,
-    nbf: i64,
-    iat: i64,
-    iss: String,
+    /// 用户唯一标识，对应 auth_id
     sub: String,
-    typ: String,
-    azp: String,
-    auth_time: i64,
-    session_state: String,
-    acr: String,
-    scope: String,
+    /// 权限信息
     grants: GrantsClaims,
-    creation_time: i64,
-    setname: bool,
-    mobile: String,
-    #[serde(rename = "mobileVerified")]
-    mobile_verified: String,
-    preferred_username: String,
-    id: String,
-    username: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+/// JWT grants 声明
+///
+/// 权限判断只依赖 features 与 accounts；otg / otg_ids / expiry_date 未被使用。
+/// 授权到期时间由 auth 服务的 get-grant/tq 接口提供，并不取自这里。
+#[derive(Debug, Deserialize)]
 struct GrantsClaims {
+    #[serde(default)]
     features: Vec<String>,
-    otg_ids: String,
-    expiry_date: String,
+    #[serde(default)]
     accounts: Vec<String>,
 }
 
@@ -188,13 +179,28 @@ impl TqAuth {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await?;
+            debug!("Token 获取失败, Status: {}, Body: {}", status, body);
             return Err(TqError::AuthenticationError(format!(
                 "认证失败 ({}): {}",
                 status, body
             )));
         }
 
-        let auth_resp: AuthResponse = response.json().await?;
+        // 先取出原始报文，这样 JSON 解析失败时才有内容可以打日志
+        // （response.json() 会消费 response，失败后拿不到 body）
+        let status = response.status();
+        let body = response.text().await?;
+
+        let auth_resp: AuthResponse = serde_json::from_str(&body).map_err(|e| {
+            debug!(
+                "Token 响应 JSON 解析失败: {}, Status: {}, Body({} bytes): {}",
+                e,
+                status,
+                body.len(),
+                body
+            );
+            TqError::JsonError(format!("解析认证响应失败: {}", e))
+        })?;
         self.access_token = auth_resp.access_token;
         self.refresh_token = auth_resp.refresh_token;
 
@@ -207,7 +213,17 @@ impl TqAuth {
         // 解析 JWT（不验证签名，因为我们信任天勤服务器）
         use jsonwebtoken::dangerous::insecure_decode;
         // 这里我们使用不验证签名的方式解析
-        let token_data = insecure_decode::<AccessTokenClaims>(&self.access_token)?;
+        let token_data =
+            insecure_decode::<AccessTokenClaims>(&self.access_token).inspect_err(|e| {
+                debug!(
+                    "JWT 解析失败: {}, User: {}, 段数: {}, token({} bytes): {}",
+                    e,
+                    self.username,
+                    self.access_token.split('.').count(),
+                    self.access_token.len(),
+                    self.access_token
+                );
+            })?;
 
         let claims = token_data.claims;
         self.auth_id = claims.sub;
@@ -248,7 +264,10 @@ impl Authenticator for TqAuth {
     async fn login(&mut self) -> Result<()> {
         self.request_token().await?;
         self.parse_token()?;
-        info!("TqAuth 登录成功, User: {},  AuthId: {}", self.username, self.auth_id);
+        info!(
+            "TqAuth 登录成功, User: {},  AuthId: {}",
+            self.username, self.auth_id
+        );
         Ok(())
     }
 

@@ -2,6 +2,8 @@
 name = "candlechart"
 version = "0.1.0"
 edition = "2024"
+# 示例 crate，不发布到 crates.io（否则 workspace 级 cargo publish 会校验它的 path 依赖）
+publish = false
 
 [dependencies]
 tqsdk-rs = { path = "../../tqsdk-rs" }

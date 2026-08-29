@@ -710,8 +710,10 @@ impl TqQuoteWebsocket {
 
                         if let Some(view_width) = value.get("view_width").and_then(|v| v.as_f64()) {
                             if view_width == 0.0 {
-                                trace!("删除图表: {}", chart_id);
+                                // view_width=0 会导致服务端主动断连，只清本地注册表，不转发
+                                warn!("set_chart view_width=0，已阻止发送到服务端（会触发服务端断连）: chart_id={}", chart_id);
                                 charts_guard.remove(chart_id);
+                                return Ok(());
                             } else {
                                 trace!("保存图表请求: {}", chart_id);
                                 charts_guard.insert(chart_id.to_string(), value.clone());

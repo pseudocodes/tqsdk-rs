@@ -312,7 +312,7 @@ impl Client {
         }
         {
             let auth = self.auth.read().await;
-            auth.has_md_grants(symbols)? 
+            auth.has_md_grants(symbols)?
         }
         let symbol_list: Vec<String> = symbols.iter().map(|s| s.to_string()).collect();
         let qs = Arc::new(QuoteSubscription::new(

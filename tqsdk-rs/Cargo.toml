@@ -8,6 +8,12 @@ license = "Apache-2.0"
 repository = "https://github.com/pseudocodes/tqsdk-rs"
 keywords = ["tqsdk", "tqsdk-rs", "shinnytech", "quant", "trader"]
 categories = ["api-bindings", "finance"]
+# 打包时排除的文件（gitignore 风格 glob，相对于本 crate 目录）
+exclude = [
+    "logs/",
+    "*.log",
+    "examples/**/*.json", # 含真实 token/账户信息的调试样本，不应发布
+]
 
 [dependencies]
 # WebSocket - yawc 必须使用

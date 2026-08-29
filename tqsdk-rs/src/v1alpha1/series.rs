@@ -259,7 +259,10 @@ impl SeriesSubscription {
 
     /// 发送 set_chart 请求
     async fn send_set_chart(&self) -> Result<()> {
-        let view_width = if self.options.view_width > 10000 {
+        let view_width = if self.options.view_width == 0 {
+            warn!("ViewWidth 为 0，view_width=0 会导致服务端断连，已自动调整为 200");
+            200
+        } else if self.options.view_width > 10000 {
             warn!("ViewWidth 超过最大限制，调整为 10000");
             10000
         } else {
@@ -481,6 +484,19 @@ impl SeriesSubscription {
         *running = false;
 
         info!("关闭 Series 订阅: {}", self.options.chart_id);
+
+        // 通知服务端取消图表订阅：ins_list="" + 保留原 view_width（不能为 0，否则服务端会断连）
+        let view_width = self.options.view_width.max(1);
+        let cancel_req = serde_json::json!({
+            "aid": "set_chart",
+            "chart_id": self.options.chart_id,
+            "ins_list": "",
+            "duration": self.options.duration,
+            "view_width": view_width
+        });
+        debug!("发送取消订阅请求: chart_id={}", self.options.chart_id);
+        self.ws.send(&cancel_req).await?;
+
         Ok(())
     }
 }
