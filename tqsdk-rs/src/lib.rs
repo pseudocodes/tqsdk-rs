@@ -16,33 +16,75 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // 创建客户端
-//!     let client = Client::new("username", "password", ClientConfig::default()).await?;
-//!     
+//!     let mut client = Client::new("username", "password", ClientConfig::default()).await?;
+//!
 //!     // 初始化行情
 //!     client.init_market().await?;
-//!     
+//!
 //!     // 订阅行情
-//!     let quote_sub = client.subscribe_quote(&["SHFE.au2602"]).await?;
-//!     
+//!     let _quote_sub = client.subscribe_quote(&["SHFE.au2602"]).await?;
+//!
 //!     Ok(())
 //! }
 //! ```
+//!
+//! ## 模块组织
+//!
+//! 模块按职责划分，公共 API 面在本文件一次性导出：
+//! 常用类型可直接从 crate 根导入（如 `tqsdk_rs::Client`），
+//! 需要更细的类型时再走模块路径（如 `tqsdk_rs::auth::TqAuth`）。
 
-// v1alpha1 实现
-pub mod v1alpha1;
+// 错误类型
+pub mod errors;
 
-// 重新导出常用类型（保持向后兼容）
-pub use v1alpha1::auth::Authenticator;
-pub use v1alpha1::client::{Client, ClientConfig, ClientOption};
-pub use v1alpha1::datamanager::{DataManager, DataManagerConfig};
-pub use v1alpha1::errors::{Result, TqError};
-pub use v1alpha1::logger::{create_logger_layer, init_logger};
-pub use v1alpha1::quote::QuoteSubscription;
-pub use v1alpha1::series::{SeriesAPI, SeriesSubscription};
-pub use v1alpha1::trade_session::TradeSession;
-pub use v1alpha1::types::*;
-pub use v1alpha1::websocket::TqWebsocket;
+// 日志系统
+pub mod logger;
 
-// Polars 扩展
+// 工具函数
+pub mod utils;
+
+// 数据结构
+pub mod types;
+
+// 数据管理器
+pub mod datamanager;
+
+// 认证模块
+pub mod auth;
+
+// WebSocket 连接
+pub mod websocket;
+
+// Quote 订阅
+pub mod quote;
+
+// Series API
+pub mod series;
+
+// 交易会话
+pub mod trade_session;
+
+// 客户端
+pub mod client;
+
+// Polars 扩展（可选功能）
 #[cfg(feature = "polars")]
-pub use v1alpha1::polars_ext::{KlineBuffer, TickBuffer};
+pub mod polars_ext;
+
+// ---------------------------------------------------------------------------
+// 公共 API 面：只在这里导出一次，避免多层 re-export 清单互相漂移
+// ---------------------------------------------------------------------------
+
+pub use auth::Authenticator;
+pub use client::{Client, ClientBuilder, ClientConfig, ClientOption};
+pub use datamanager::{DataManager, DataManagerConfig};
+pub use errors::{Result, TqError};
+pub use logger::{create_logger_layer, init_logger};
+pub use quote::QuoteSubscription;
+pub use series::{SeriesAPI, SeriesSubscription};
+pub use trade_session::TradeSession;
+pub use types::*;
+pub use websocket::TqWebsocket;
+
+#[cfg(feature = "polars")]
+pub use polars_ext::{KlineBuffer, TickBuffer};

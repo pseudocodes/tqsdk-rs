@@ -5,13 +5,15 @@
 #[cfg(feature = "polars")]
 use polars::prelude::*;
 
-use super::errors::{Result, TqError};
-use super::types::{Kline, Tick, SeriesData, KlineSeriesData, TickSeriesData, MultiKlineSeriesData};
+use crate::errors::{Result, TqError};
+use crate::types::{
+    Kline, KlineSeriesData, MultiKlineSeriesData, SeriesData, Tick, TickSeriesData,
+};
 
 // ==================== K线缓冲区 ====================
 
 /// K线数据缓冲区
-/// 
+///
 /// 维护可变的列向量，支持高效的追加和更新操作
 /// 可按需转换为 Polars DataFrame 进行分析
 #[cfg(feature = "polars")]
@@ -77,7 +79,7 @@ impl KlineBuffer {
     }
 
     /// 更新最后一根 K线
-    /// 
+    ///
     /// 如果缓冲区为空，则添加新 K线
     pub fn update_last(&mut self, kline: &Kline) {
         if self.ids.is_empty() {
@@ -86,7 +88,7 @@ impl KlineBuffer {
         }
 
         let last_idx = self.ids.len() - 1;
-        
+
         // 更新可能变化的字段
         self.highs[last_idx] = kline.high;
         self.lows[last_idx] = kline.low;
@@ -198,7 +200,10 @@ impl KlineBuffer {
 
         let len = self.ids.len();
         if start >= len {
-            return Err(TqError::Other(format!("起始位置 {} 超出范围 {}", start, len)));
+            return Err(TqError::Other(format!(
+                "起始位置 {} 超出范围 {}",
+                start, len
+            )));
         }
 
         let end = std::cmp::min(start + length, len);
@@ -316,7 +321,7 @@ impl TickBuffer {
         }
 
         let last_idx = self.ids.len() - 1;
-        
+
         self.last_prices[last_idx] = tick.last_price;
         self.averages[last_idx] = tick.average;
         self.highests[last_idx] = tick.highest;
@@ -437,7 +442,9 @@ impl SeriesData {
 
     /// 单合约 K线转 DataFrame
     fn single_kline_to_dataframe(&self) -> Result<DataFrame> {
-        let kline_data = self.single.as_ref()
+        let kline_data = self
+            .single
+            .as_ref()
             .ok_or_else(|| TqError::Other("单合约数据不存在".to_string()))?;
 
         kline_data.to_dataframe()
@@ -445,7 +452,9 @@ impl SeriesData {
 
     /// Tick 数据转 DataFrame
     fn tick_to_dataframe(&self) -> Result<DataFrame> {
-        let tick_data = self.tick_data.as_ref()
+        let tick_data = self
+            .tick_data
+            .as_ref()
             .ok_or_else(|| TqError::Other("Tick数据不存在".to_string()))?;
 
         tick_data.to_dataframe()
@@ -453,7 +462,9 @@ impl SeriesData {
 
     /// 多合约 K线转 DataFrame（长表格式）
     fn multi_kline_to_dataframe(&self) -> Result<DataFrame> {
-        let multi_data = self.multi.as_ref()
+        let multi_data = self
+            .multi
+            .as_ref()
             .ok_or_else(|| TqError::Other("多合约数据不存在".to_string()))?;
 
         multi_data.to_dataframe()
@@ -466,7 +477,9 @@ impl SeriesData {
             return Err(TqError::Other("只有多合约数据支持宽表格式".to_string()));
         }
 
-        let multi_data = self.multi.as_ref()
+        let multi_data = self
+            .multi
+            .as_ref()
             .ok_or_else(|| TqError::Other("多合约数据不存在".to_string()))?;
 
         multi_data.to_wide_dataframe()
@@ -567,7 +580,9 @@ impl MultiKlineSeriesData {
 
         // 提取主时间轴
         let main_ids: Vec<i64> = self.data.iter().map(|s| s.main_id).collect();
-        let timestamps: Vec<i64> = self.data.iter()
+        let timestamps: Vec<i64> = self
+            .data
+            .iter()
             .map(|s| s.timestamp.timestamp_nanos_opt().unwrap_or(0))
             .collect();
 
@@ -623,7 +638,7 @@ mod tests {
     #[test]
     fn test_kline_buffer() {
         let mut buffer = KlineBuffer::new();
-        
+
         // 添加 K线
         let kline1 = Kline {
             id: 1,
@@ -637,10 +652,10 @@ mod tests {
             close_oi: 520,
             epoch: None,
         };
-        
+
         buffer.push(&kline1);
         assert_eq!(buffer.len(), 1);
-        
+
         // 更新最后一根
         let kline2 = Kline {
             id: 1,
@@ -654,12 +669,12 @@ mod tests {
             close_oi: 530,
             epoch: None,
         };
-        
+
         buffer.update_last(&kline2);
         assert_eq!(buffer.len(), 1);
         assert_eq!(buffer.highs[0], 106.0);
         assert_eq!(buffer.closes[0], 104.0);
-        
+
         // 转换为 DataFrame
         let df = buffer.to_dataframe().unwrap();
         assert_eq!(df.height(), 1);
@@ -669,7 +684,7 @@ mod tests {
     #[test]
     fn test_tick_buffer() {
         let mut buffer = TickBuffer::new();
-        
+
         let tick = Tick {
             id: 1,
             datetime: 1000000000,
@@ -702,10 +717,10 @@ mod tests {
             open_interest: 5000,
             epoch: None,
         };
-        
+
         buffer.push(&tick);
         assert_eq!(buffer.len(), 1);
-        
+
         let df = buffer.to_dataframe().unwrap();
         assert_eq!(df.height(), 1);
     }

@@ -2,10 +2,10 @@
 //!
 //! 实现 K线和 Tick 订阅功能
 
-use super::datamanager::DataManager;
-use super::errors::{Result, TqError};
-use super::types::{ChartInfo, SeriesData, UpdateInfo};
-use super::websocket::TqQuoteWebsocket;
+use crate::datamanager::DataManager;
+use crate::errors::{Result, TqError};
+use crate::types::{ChartInfo, SeriesData, UpdateInfo};
+use crate::websocket::TqQuoteWebsocket;
 use async_stream::stream;
 use chrono::{DateTime, Utc};
 use futures::Stream;
@@ -16,7 +16,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, trace, warn};
 use uuid::Uuid;
 
-use super::auth::Authenticator;
+use crate::auth::Authenticator;
 
 /// Series API
 pub struct SeriesAPI {
