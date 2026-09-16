@@ -2,3 +2,6 @@ target/
 Cargo.lock
 .cargo
 logs/
+
+# 含真实 token / 账户信息的调试样本，不要入库
+tqsdk-rs/examples/*.json

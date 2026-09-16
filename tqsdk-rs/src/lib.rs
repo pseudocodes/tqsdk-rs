@@ -16,7 +16,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // 创建客户端
-//!     let client = Client::new("username", "password", ClientConfig::default()).await?;
+//!     let mut client = Client::new("username", "password", ClientConfig::default()).await?;
 //!
 //!     // 初始化行情
 //!     client.init_market().await?;
@@ -76,7 +76,7 @@ pub mod polars_ext;
 // ---------------------------------------------------------------------------
 
 pub use auth::Authenticator;
-pub use client::{Client, ClientConfig, ClientOption};
+pub use client::{Client, ClientBuilder, ClientConfig, ClientOption};
 pub use datamanager::{DataManager, DataManagerConfig};
 pub use errors::{Result, TqError};
 pub use logger::{create_logger_layer, init_logger};
