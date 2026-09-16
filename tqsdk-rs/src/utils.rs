@@ -5,7 +5,7 @@
 //! - 时间转换
 //! - 字符串处理
 
-use super::errors::{Result, TqError};
+use crate::errors::{Result, TqError};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use serde_json::Value;
@@ -256,7 +256,7 @@ mod tests {
         let now = Utc::now();
         let nanos = datetime_to_nanos(&now);
         let dt = nanos_to_datetime(nanos);
-        
+
         // 允许少量误差（纳秒精度可能有损失）
         let diff = (dt.timestamp() - now.timestamp()).abs();
         assert!(diff <= 1);
@@ -266,10 +266,9 @@ mod tests {
     fn test_generate_chart_id() {
         let id1 = generate_chart_id("TQGO_kline");
         let id2 = generate_chart_id("TQGO_kline");
-        
+
         assert!(id1.starts_with("TQGO_kline_"));
         assert!(id2.starts_with("TQGO_kline_"));
         assert_ne!(id1, id2); // 应该是不同的 ID
     }
 }
-

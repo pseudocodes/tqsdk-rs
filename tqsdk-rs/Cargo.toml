@@ -1,6 +1,6 @@
 [package]
 name = "tqsdk-rs"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 authors = ["pseudocodes@gmail.com"]
 description = "天勤 TQSDK Rust 封装提供获取 TQSDK 行情, K 线数据以及实盘交易接口"
@@ -76,22 +76,5 @@ polars = ["dep:polars"]
 tokio-test = "0.4.4"
 tracing-appender = "0.2"
 
-[[example]]
-name = "v1alpha1_quote"
-path = "examples/v1alpha1/quote.rs"
-
-[[example]]
-name = "v1alpha1_history"
-path = "examples/v1alpha1/history.rs"
-
-[[example]]
-name = "v1alpha1_trade"
-path = "examples/v1alpha1/trade.rs"
-
-[[example]]
-name = "v1alpha1_datamanager"
-path = "examples/v1alpha1/datamanager.rs"
-
-[[example]]
-name = "v1alpha1_custom_logger"
-path = "examples/v1alpha1/custom_logger.rs"
+# examples/ 下的 *.rs 由 cargo 自动发现，无需手写 [[example]]
+# 运行：cargo run --example quote

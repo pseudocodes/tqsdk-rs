@@ -6,8 +6,8 @@
 //! - 消息队列
 //! - Debug 日志
 
-use super::datamanager::DataManager;
-use super::errors::{Result, TqError};
+use crate::datamanager::DataManager;
+use crate::errors::{Result, TqError};
 use futures::{SinkExt, StreamExt};
 use reqwest::header::HeaderMap;
 use serde::Serialize;
@@ -748,7 +748,7 @@ pub struct TqTradeWebsocket {
     base: Arc<TqWebsocket>,
     _dm: Arc<DataManager>,
     req_login: Arc<RwLock<Option<Value>>>,
-    on_notify: Arc<RwLock<Option<Box<dyn Fn(super::types::Notification) + Send + Sync>>>>,
+    on_notify: Arc<RwLock<Option<Box<dyn Fn(crate::types::Notification) + Send + Sync>>>>,
 }
 
 impl TqTradeWebsocket {
@@ -757,7 +757,7 @@ impl TqTradeWebsocket {
         let base = Arc::new(TqWebsocket::new(url, config));
         let dm_clone = Arc::clone(&dm);
         let req_login: Arc<RwLock<Option<Value>>> = Arc::new(RwLock::new(None));
-        let on_notify: Arc<RwLock<Option<Box<dyn Fn(super::types::Notification) + Send + Sync>>>> =
+        let on_notify: Arc<RwLock<Option<Box<dyn Fn(crate::types::Notification) + Send + Sync>>>> =
             Arc::new(RwLock::new(None));
 
         // 注册消息处理
@@ -858,7 +858,7 @@ impl TqTradeWebsocket {
     /// 分离通知
     ///
     /// 从 rtn_data 的 data 数组中提取通知，并返回清理后的数据
-    fn separate_notifies(data: Vec<Value>) -> (Vec<super::types::Notification>, Vec<Value>) {
+    fn separate_notifies(data: Vec<Value>) -> (Vec<crate::types::Notification>, Vec<Value>) {
         let mut notifies = Vec::new();
         let mut cleaned_data = Vec::new();
 
@@ -869,7 +869,7 @@ impl TqTradeWebsocket {
                     if let Some(notify_map) = notify_data.as_object() {
                         for (_key, notify_value) in notify_map {
                             if let Some(n) = notify_value.as_object() {
-                                let notification = super::types::Notification {
+                                let notification = crate::types::Notification {
                                     code: n
                                         .get("code")
                                         .and_then(|v| v.as_str())
@@ -928,7 +928,7 @@ impl TqTradeWebsocket {
     /// 注册通知回调
     pub fn on_notify<F>(&self, callback: F)
     where
-        F: Fn(super::types::Notification) + Send + Sync + 'static,
+        F: Fn(crate::types::Notification) + Send + Sync + 'static,
     {
         *self.on_notify.write().unwrap() = Some(Box::new(callback));
     }
